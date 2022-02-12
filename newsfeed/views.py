@@ -1,6 +1,6 @@
 from django.db import IntegrityError
 from rest_framework import generics, status
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
@@ -9,10 +9,9 @@ from newsfeed.serializers import PostSerializer, PostLikeSerializer
 
 
 class PostCreateView(CreateAPIView):
-
     model = Post
     serializer_class = PostSerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -21,12 +20,12 @@ class PostCreateView(CreateAPIView):
 class PostListView(ListAPIView):
     serializer_class = PostSerializer
     queryset = Post.objects.all()
-    permission_classes = (AllowAny, )
+    permission_classes = (AllowAny,)
 
 
-class PostLikeToggleView(generics.CreateAPIView):
+class PostLikeView(generics.CreateAPIView):
     serializer_class = PostLikeSerializer
-    permission_classes = (IsAuthenticated, )
+    permission_classes = (IsAuthenticated,)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -34,7 +33,7 @@ class PostLikeToggleView(generics.CreateAPIView):
         try:
             self.perform_create(serializer)
         except IntegrityError as e:
-            return Response({"message": "Post unliked successfully"}, status.HTTP_204_NO_CONTENT)
+            return Response({"message": "Post already liked by this user"}, status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"message": str(e)}, status.HTTP_400_BAD_REQUEST)
         headers = self.get_success_headers(serializer.data)
@@ -48,10 +47,32 @@ class PostLikeToggleView(generics.CreateAPIView):
         try:
             serializer.save()
         except IntegrityError as e:
-            postlike_obj = PostLike.objects.filter(post=post, user=self.request.user).first()
-            postlike_obj.delete()
-            post.likes = max(post.likes - 1, 0)
-            post.save()
             raise IntegrityError
         post.likes += 1
         post.save()
+
+
+class PostLikeToggleView(generics.CreateAPIView):
+    serializer_class = PostLikeSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            self.perform_create(serializer)
+        except IntegrityError as e:
+            return Response({"message": "Post unliked successfully"}, status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({"message": str(e)}, status.HTTP_400_BAD_REQUEST)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class UserPostListView(ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        posts = Post.objects.filter(user=self.kwargs.get('user'))
+        return posts

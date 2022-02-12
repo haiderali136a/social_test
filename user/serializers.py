@@ -28,7 +28,8 @@ class SignUpSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ('username', 'password', 'email', 'first_name', 'last_name')
+        fields = ('id', 'username', 'password', 'email', 'first_name', 'last_name')
+        read_only_fields = ('id', )
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': True},
